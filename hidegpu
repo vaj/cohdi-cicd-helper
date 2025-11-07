@@ -1,0 +1,143 @@
+#!/bin/sh
+
+# Hide a GPU from the NVIDIA DRA driver for GPUs
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+prog=$0
+if [ ! -r /etc/shadow ]; then
+    echo "$prog: Run as root."
+    exit 1
+fi
+
+blacklist="/etc/modprobe.d/nvidia.conf"
+statefile="/run/hidegpu/state"
+bus="/sys/bus/pci/devices"
+mkdir -p /run/hidegpu
+
+case $1 in
+hide1)
+    mode="hide1";;	# special mode for the system bootstrap
+hide)
+    mode="hide";;
+unhide)
+    mode="unhide";;
+*)
+    echo "Usage: $prog <hide|unhide>"
+    exit 1;;
+esac
+
+# Only find the first found
+findgpu() {
+    local dev vendor class
+    for dev in ${bus}/*; do
+        dev=$(basename $dev)
+        case $dev in
+        ????:??:??.?)
+            :;;
+        default)
+            continue;;
+        esac
+        vendor=$(cat ${bus}/${dev}/vendor)
+        class=$(cat ${bus}/${dev}/class)
+        if [ "$vendor" = "0x10de" -a "$class" = "0x030000" ]; then
+                local parent
+                parent=$(readlink -f ${bus}/${dev}/..)
+                parent=$(basename $parent)
+                echo "parent=${parent}" > $statefile
+                echo ${dev}
+                return 0
+        fi
+    done
+
+    echo ""
+    return 1
+}
+
+unload() {
+    local m
+    for m in $(lsmod | awk '/^nvidia/{print $1}'); do
+        rmmod $m
+    done
+}
+
+blacklist() {
+    cat > $blacklist <<EOF
+blacklist nvidia
+blacklist nvidia-uvm
+blacklist nvidia-modeset
+blacklist nvidia-peermem
+EOF
+}
+
+unblacklist() {
+    rm $blacklist
+}
+
+checkifhidden() {
+    local dev r
+    dev=$(findgpu)
+    if [ "$dev" = "" ]; then
+        if [ ! -f $blacklist -o ! -f $statefile ]; then
+            echo "$prog hidden but somithing is wrong; exiting"
+            exit 1
+        else
+            r=0
+        fi
+    else
+        if [ -f $blacklist ]; then
+            if [ ! -f $statefile ]; then
+                echo "$prog hidden but something is wrong; exiting"
+                exit 1
+            else
+                r=0
+            fi
+        else
+            r=1
+	fi
+    fi
+    return $r
+}
+
+scanparent() {
+    local parent
+    eval $(cat $statefile)
+    echo 1 > ${bus}/${parent}/rescan
+}
+
+restrictkmod() {
+    sysctl -qw kernel.restrict_kmod=1
+}
+unrestrictkmod() {
+    sysctl -qw kernel.restrict_kmod=0
+}
+
+
+case $mode in
+hide1)
+    gpu=$(findgpu)
+    unload
+    blacklist
+    restrictkmod
+    echo 1 > ${bus}/${gpu}/remove
+    echo "$prog: Hid the GPU $gpu"
+    ;;
+hide)
+    gpu=$(findgpu)
+    if checkifhidden; then
+        echo "$prog: GPU is already hidden; exiting..."
+        exit 1
+    fi
+    unload
+    blacklist
+    restrictkmod
+    ;;
+unhide)
+    if ! checkifhidden; then
+        echo "$prog: GPU is already unhidden; exiting..."
+        exit 1
+    fi
+    unblacklist
+    scanparent
+    unrestrictkmod
+    ;;
+esac

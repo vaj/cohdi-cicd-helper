@@ -1,0 +1,17 @@
+Source: cohdi-cicd-helper
+Section: devel
+Priority: optional
+Maintainer: minoura makoto <minoura@valinux.co.jp>
+Rules-Requires-Root: no
+Build-Depends: debhelper-compat (= 13), dh-sequence-dkms
+Standards-Version: 4.6.2
+Homepage: https://github.com/CoHDI/
+
+Package: cohdi-cicd-helper
+Architecture: any
+Multi-Arch: foreign
+Depends: ${misc:Depends}
+Description: CoHDI CI/CD Helper for the Worker Nodes
+ This package contains a kernel module and a shell script to emulate CDI
+ (Composable Disaggregated Infrastructure) for the NVIDIA DRA Driver for
+ GPUs.

@@ -1,0 +1,12 @@
+[Unit]
+Description=Hide GPU for the first time
+After=network.target
+Before=kubelet.service
+
+[Service]
+Type=oneshot
+StandardOutput=journal
+ExecStart=/usr/sbin/hidegpu hide1
+
+[Install]
+WantedBy=multi-user.target

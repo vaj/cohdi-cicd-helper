@@ -1,0 +1,43 @@
+#!/usr/bin/make -f
+
+RKMOD=restrict_kmod
+
+include /usr/share/dpkg/pkg-info.mk
+
+# See debhelper(7) (uncomment to enable).
+# Output every command that modifies files on the build system.
+#export DH_VERBOSE = 1
+
+
+# See FEATURE AREAS in dpkg-buildflags(1).
+#export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# See ENVIRONMENT in dpkg-buildflags(1).
+# Package maintainers to append CFLAGS.
+#export DEB_CFLAGS_MAINT_APPEND  = -Wall -pedantic
+# Package maintainers to append LDFLAGS.
+#export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
+
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	@echo "Nothing to build for now"
+
+override_dh_auto_test:
+	@echo "Nothing to test for now"
+
+override_dh_auto_install:
+	dh_install hidegpu usr/sbin
+	dh_install hidegpu.service usr/lib/systemd/system
+	dh_install rk.conf usr/lib/modules-load.d
+	dh_install blacklist-nouveau.conf usr/lib/modprobe.d
+
+override_dh_installsystemd:
+	dh_installsystemd --no-start hidegpu.service
+
+override_dh_dkms:
+	dh_install module/Makefile module/*.c module/dkms.conf \
+		usr/src/$(RKMOD)-$(DEB_VERSION_UPSTREAM)
+	dh_dkms -V $(DEB_VERSION_UPSTREAM)
