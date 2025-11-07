@@ -16,8 +16,8 @@ operator (and other) container.
 This is a shellscript to hide/unhide a GPU.  It is invoked
 at boot time (from systemd hidegpu.service) to hide the
 GPU (the initial state).  To emulate hot-plugging the GPU,
-invoke `hidegpu hide` as root.  To emulate hot-removing
-the GPU, invoke `hidegpu unhide`.
+invoke `hidegpu unhide` as root.  To emulate hot-removing
+the GPU, invoke `hidegpu hide`.
 
 ## rk.conf
 
