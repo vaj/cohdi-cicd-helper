@@ -110,6 +110,7 @@ static int restrict_kmod_init(void)
 
 static void restrict_kmod_exit(void)
 {
+	unregister_sysctl_table(sw_header);
 }
 
 module_init(restrict_kmod_init);
