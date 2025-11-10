@@ -6,21 +6,26 @@
  */
 
 #include <linux/module.h>
-#include <linux/kernel.h>
 #include <linux/livepatch.h>
+#include <linux/kernel.h>
 #include <linux/printk.h>
-#include <linux/module_signature.h>
 #include <linux/nsproxy.h>
 #include <linux/sysctl.h>
+#include <linux/version.h>
 #include <net/net_namespace.h>
 
 static bool restricted = 1;
-int rk_mod_check_sig(const struct module_signature *, size_t, const char *);
 
-/* copied from kernel/module_signature.c , except for the first if(){}*/
-int rk_mod_check_sig(const struct module_signature *ms, size_t file_len,
-		     const char *name)
+int rk_module_enforce_rwx_sections(Elf_Ehdr *, Elf_Shdr *,
+                                   char *, struct module *);
+
+/* copied from kernel/module/strict_rwx.c , except for the first if(){}*/
+int rk_module_enforce_rwx_sections(Elf_Ehdr *hdr, Elf_Shdr *sechdrs,
+                                   char *secstrings, struct module *mod)
 {
+	const unsigned long shf_wx = SHF_WRITE | SHF_EXECINSTR;
+	int i;
+
 #ifdef RKDEBUG
 	if (current) {
 		int i = 0;
@@ -47,25 +52,15 @@ int rk_mod_check_sig(const struct module_signature *ms, size_t file_len,
 		return -EPERM;
 	}
 
-	if (be32_to_cpu(ms->sig_len) >= file_len - sizeof(*ms))
-		return -EBADMSG;
+	if (!IS_ENABLED(CONFIG_STRICT_MODULE_RWX))
+		return 0;
 
-	if (ms->id_type != PKEY_ID_PKCS7) {
-		pr_err("%s: not signed with expected PKCS#7 message\n",
-		       name);
-		return -ENOPKG;
-	}
-
-	if (ms->algo != 0 ||
-	    ms->hash != 0 ||
-	    ms->signer_len != 0 ||
-	    ms->key_id_len != 0 ||
-	    ms->__pad[0] != 0 ||
-	    ms->__pad[1] != 0 ||
-	    ms->__pad[2] != 0) {
-		pr_err("%s: PKCS#7 signature info has unexpected non-zero params\n",
-		       name);
-		return -EBADMSG;
+	for (i = 0; i < hdr->e_shnum; i++) {
+		if ((sechdrs[i].sh_flags & shf_wx) == shf_wx) {
+			pr_err("%s: section %s (index %d) has invalid WRITE|EXEC flags\n",
+			       mod->name, secstrings + sechdrs[i].sh_name, i);
+			return -ENOEXEC;
+		}
 	}
 
 	return 0;
@@ -86,8 +81,8 @@ static struct ctl_table_header *sw_header;
 /* and below lines are mostly copied from livepatch-sample.c */
 static struct klp_func funcs[] = {
 	{
-		.old_name = "mod_check_sig",
-		.new_func = rk_mod_check_sig,
+		.old_name = "module_enforce_rwx_sections",
+		.new_func = rk_module_enforce_rwx_sections,
 	}, { }
 };
 
