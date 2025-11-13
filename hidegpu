@@ -4,9 +4,9 @@
 
 PATH=/usr/sbin:/usr/bin:/sbin:/bin
 prog=$0
-if [ ! -r /etc/shadow ]; then
-    echo "$prog: Run as root."
-    exit 1
+running_root=0
+if [ -r /etc/shadow ]; then
+        running_root=1
 fi
 
 blacklist="/etc/modprobe.d/nvidia.conf"
@@ -14,17 +14,29 @@ statefile="/run/hidegpu/state"
 bus="/sys/bus/pci/devices"
 mkdir -p /run/hidegpu
 
-case $1 in
-hide1)
-    mode="hide1";;	# special mode for the system bootstrap
-hide)
-    mode="hide";;
-unhide)
-    mode="unhide";;
-*)
-    echo "Usage: $prog <hide|unhide>"
-    exit 1;;
-esac
+if [ $# -eq 0 ]; then
+        mode="status"
+elif [ $# -eq 1 ]; then
+        case $1 in
+        hide2)
+            mode="hide1";;	# special mode for the system bootstrap
+        hide)
+            mode="hide";;
+        unhide)
+            mode="unhide";;
+        status)
+            mode="status";;
+        *)
+            echo "Usage: $prog <hide|unhide|status>"
+            exit 1;;
+        esac
+else
+        echo "Usage: $prog <hide|unhide|status>"
+fi
+if [ $running_root -eq 0 -a $mode != "status" ]; then
+    echo "$prog: Run as root."
+    exit 1
+fi
 
 # Only find the first found
 findgpu() {
@@ -40,10 +52,12 @@ findgpu() {
         vendor=$(cat ${bus}/${dev}/vendor)
         class=$(cat ${bus}/${dev}/class)
         if [ "$vendor" = "0x10de" -a "$class" = "0x030000" ]; then
-                local parent
-                parent=$(readlink -f ${bus}/${dev}/..)
-                parent=$(basename $parent)
-                echo "parent=${parent}" > $statefile
+                if [ $running_root -eq 1 ]; then
+                        local parent
+                        parent=$(readlink -f ${bus}/${dev}/..)
+                        parent=$(basename $parent)
+                        echo "parent=${parent}" > $statefile
+                fi
                 echo ${dev}
                 return 0
         fi
@@ -93,7 +107,7 @@ checkifhidden() {
             fi
         else
             r=1
-	fi
+        fi
     fi
     return $r
 }
@@ -114,6 +128,7 @@ unrestrictkmod() {
 
 case $mode in
 hide1)
+    ## Status before reboot is unknown; reset is requested
     gpu=$(findgpu)
     unload
     blacklist
@@ -139,5 +154,12 @@ unhide)
     unblacklist
     scanparent
     unrestrictkmod
+    ;;
+status)
+    if checkifhidden; then
+        echo "hidden"
+    else
+        echo "unhidden"
+    fi
     ;;
 esac
