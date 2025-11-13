@@ -1,5 +1,5 @@
 PACKAGE_NAME="restrict_kmod"
-PACKAGE_VERSION="0.1"
+PACKAGE_VERSION="0.2"
 CLEAN="make clean"
 BUILT_MODULE_LOCATION[0]=""
 BUILT_MODULE_NAME[0]="restrict_kmod"

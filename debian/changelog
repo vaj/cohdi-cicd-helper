@@ -1,4 +1,11 @@
-cohdi-cicd-helper (0.1-1) UNRELEASED; urgency=medium
+cohdi-cicd-helper (0.2-1) unstable; urgency=medium
+
+  * The module now fake the PCI vendor ID when it is accessed from inside
+    a container.
+
+ -- minoura makoto <minoura@valinux.co.jp>  Thu, 13 Nov 2025 14:46:00 +0900
+
+cohdi-cicd-helper (0.1-1) unstable; urgency=medium
 
   * Initial release.
 
