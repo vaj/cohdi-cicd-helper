@@ -18,7 +18,7 @@ if [ $# -eq 0 ]; then
         mode="status"
 elif [ $# -eq 1 ]; then
         case $1 in
-        hide2)
+        hide1)
             mode="hide1";;	# special mode for the system bootstrap
         hide)
             mode="hide";;
