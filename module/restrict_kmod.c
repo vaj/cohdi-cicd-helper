@@ -9,9 +9,12 @@
 #include <linux/livepatch.h>
 #include <linux/kernel.h>
 #include <linux/printk.h>
+#include <linux/pci.h>
 #include <linux/nsproxy.h>
 #include <linux/sysctl.h>
 #include <net/net_namespace.h>
+
+#define PCI_VENDOR_ID_VAJ	0x2028	/* dummy; we have no HW products */
 
 static bool restricted = 1;
 
@@ -65,6 +68,30 @@ int rk_module_enforce_rwx_sections(Elf_Ehdr *hdr, Elf_Shdr *sechdrs,
 	return 0;
 }
 
+ssize_t rk_vendor_show(struct device *dev, struct device_attribute *attr,
+                       char *buf);
+
+/* see drivers/pci/pci-sysfs.c */
+ssize_t
+rk_vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	unsigned short vendor;
+	struct pci_dev *pdev;
+
+	pdev = to_pci_dev(dev);
+	vendor = pdev->vendor;
+
+	if (restricted && current &&
+	    current->nsproxy->net_ns != &init_net &&
+	    vendor == PCI_VENDOR_ID_NVIDIA) {
+		printk("rk: %s[%d] is reading the PCI vendor; faking it\n",
+		       current->comm, current->pid);
+		vendor = PCI_VENDOR_ID_VAJ;
+	}
+
+	return sysfs_emit(buf, "0x%04x\n", vendor);
+}
+
 static struct ctl_table sw[] = {
 	{
 		.procname = "restrict_kmod",
@@ -82,6 +109,12 @@ static struct klp_func funcs[] = {
 	{
 		.old_name = "module_enforce_rwx_sections",
 		.new_func = rk_module_enforce_rwx_sections,
+	},
+	{
+		.old_name = "vendor_show",
+		/* XXX: must ensure the first entry is for PCI in all versions */
+		.old_sympos = 1,
+		.new_func = rk_vendor_show,
 	}, { }
 };
 
