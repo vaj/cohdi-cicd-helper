@@ -83,7 +83,8 @@ rk_vendor_show(struct device *dev, struct device_attribute *attr, char *buf)
 
 	if (restricted && current &&
 	    current->nsproxy->net_ns != &init_net &&
-	    vendor == PCI_VENDOR_ID_NVIDIA) {
+	    vendor == PCI_VENDOR_ID_NVIDIA &&
+	    pdev->class>>8 == PCI_CLASS_DISPLAY_VGA) {
 		printk("rk: %s[%d] is reading the PCI vendor; faking it\n",
 		       current->comm, current->pid);
 		vendor = PCI_VENDOR_ID_VAJ;
