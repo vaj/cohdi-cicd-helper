@@ -11,7 +11,6 @@
 #include <linux/printk.h>
 #include <linux/nsproxy.h>
 #include <linux/sysctl.h>
-#include <linux/version.h>
 #include <net/net_namespace.h>
 
 static bool restricted = 1;
@@ -100,12 +99,17 @@ static struct klp_patch patch = {
 
 static int restrict_kmod_init(void)
 {
+	int r;
+
 	sw_header = register_sysctl("kernel", sw);
 	if (sw_header == 0) {
 		printk("rk: Failed to register sysctl\n");
 		return -ENOMEM;
 	}
-	return klp_enable_patch(&patch);
+	r = klp_enable_patch(&patch);
+	if (r)
+		unregister_sysctl_table(sw_header);
+	return r;
 }
 
 static void restrict_kmod_exit(void)
