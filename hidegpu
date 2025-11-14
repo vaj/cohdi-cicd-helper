@@ -126,6 +126,18 @@ unrestrictkmod() {
 }
 
 
+checkifused() {
+#    local n mods
+#    n=$(lsmod | awk '$1 == "nvidia" { print $3 }')
+#    mods=$(lsmod | awk '$1 == "nvidia" { print $4 }')
+#    IFS=,
+#    set -- $mods
+#    test $n -ne $#
+    local n
+    n=$(lsmod | awk '$1 == "nvidia_modeset" { print $3 }')
+    test $n -ne 0
+}
+
 case $mode in
 hide1)
     ## Status before reboot is unknown; reset is requested
@@ -141,6 +153,12 @@ hide)
     if checkifhidden; then
         echo "$prog: GPU is already hidden; exiting..."
         exit 1
+    fi
+    if [ -d /sys/module/nvidia ]; then
+        if checkifused; then
+            echo "$prog: GPU is used; exiting..."
+            exit 1
+        fi
     fi
     unload
     blacklist
