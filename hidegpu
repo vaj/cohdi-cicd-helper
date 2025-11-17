@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/sh
 
 # Hide a GPU from the NVIDIA DRA driver for GPUs
 
@@ -115,7 +115,9 @@ checkifhidden() {
 scanparent() {
     local parent
     eval $(cat $statefile)
-    echo 1 > ${bus}/${parent}/rescan
+    if [ "$parent" != "" ]; then
+        echo 1 > ${bus}/${parent}/rescan
+    fi
 }
 
 restrictkmod() {
@@ -145,11 +147,12 @@ hide1)
     unload
     blacklist
     restrictkmod
-    echo 1 > ${bus}/${gpu}/remove
+    if [ "$gpu" != "" ]; then
+        echo 1 > ${bus}/${gpu}/remove
+    fi
     echo "$prog: Hid the GPU $gpu"
     ;;
 hide)
-    gpu=$(findgpu)
     if checkifhidden; then
         echo "$prog: GPU is already hidden; exiting..."
         exit 1
