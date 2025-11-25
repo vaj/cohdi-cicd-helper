@@ -6,32 +6,38 @@ PATH=/usr/sbin:/usr/bin:/sbin:/bin
 prog=$0
 running_root=0
 if [ -r /etc/shadow ]; then
-        running_root=1
+    running_root=1
+fi
+if [ ! -d /sys/module/restrict_kmod ]; then
+    echo "$prog: Module not loaded"
+    exit 1
 fi
 
 blacklist="/etc/modprobe.d/nvidia.conf"
 statefile="/run/hidegpu/state"
 bus="/sys/bus/pci/devices"
-mkdir -p /run/hidegpu
+if [ $running_root -eq 1 ]; then
+    mkdir -p $(dirname $statefile)
+fi
 
 if [ $# -eq 0 ]; then
-        mode="status"
+    mode="status"
 elif [ $# -eq 1 ]; then
-        case $1 in
-        hide1)
-            mode="hide1";;	# special mode for the system bootstrap
-        hide)
-            mode="hide";;
-        unhide)
-            mode="unhide";;
-        status)
-            mode="status";;
-        *)
-            echo "Usage: $prog <hide|unhide|status>"
-            exit 1;;
-        esac
-else
+    case $1 in
+    hide1)
+        mode="hide1";;	# special mode for the system bootstrap
+    hide)
+        mode="hide";;
+    unhide)
+        mode="unhide";;
+    status)
+        mode="status";;
+    *)
         echo "Usage: $prog <hide|unhide|status>"
+        exit 1;;
+    esac
+else
+    echo "Usage: $prog <hide|unhide|status>"
 fi
 if [ $running_root -eq 0 -a $mode != "status" ]; then
     echo "$prog: Run as root."
@@ -51,15 +57,16 @@ findgpu() {
         esac
         vendor=$(cat ${bus}/${dev}/vendor)
         class=$(cat ${bus}/${dev}/class)
+        # vendor: NVIDIA, class: VGA display
         if [ "$vendor" = "0x10de" -a "$class" = "0x030000" ]; then
-                if [ $running_root -eq 1 ]; then
-                        local parent
-                        parent=$(readlink -f ${bus}/${dev}/..)
-                        parent=$(basename $parent)
-                        echo "parent=${parent}" > $statefile
-                fi
-                echo ${dev}
-                return 0
+            if [ $running_root -eq 1 ]; then
+                local parent
+                parent=$(readlink -f ${bus}/${dev}/..)
+                parent=$(basename $parent)
+                echo "parent=${parent}" > $statefile
+            fi
+            echo ${dev}
+            return 0
         fi
     done
 
@@ -88,25 +95,24 @@ unblacklist() {
 }
 
 checkifhidden() {
-    local dev r
+# unhidden if sysctl==0 and no blacklist file
+# hidden   if sysctl==1 and blacklist file exists
+# otherwise something wrong
+    local dev r v
     dev=$(findgpu)
-    if [ "$dev" = "" ]; then
-        if [ ! -f $blacklist -o ! -f $statefile ]; then
-            echo "$prog hidden but somithing is wrong; exiting"
+    v=$(sysctl -n kernel.restrict_kmod)
+
+    if [ $v -eq 0 ]; then
+        r=1
+        if [ -f $blacklist -o "$dev" = "" ]; then
+            echo "$prog: unhidden but something is wrong; exiting"
             exit 1
-        else
-            r=0
         fi
-    else
-        if [ -f $blacklist ]; then
-            if [ ! -f $statefile ]; then
-                echo "$prog hidden but something is wrong; exiting"
-                exit 1
-            else
-                r=0
-            fi
-        else
-            r=1
+    elif [ $v -eq 1 ]; then
+        r=0
+        if [ ! -f $blacklist -o ! -f $statefile ]; then
+            echo "$prog: hidden but something is wrong; exiting"
+            exit 1
         fi
     fi
     return $r
@@ -129,12 +135,6 @@ unrestrictkmod() {
 
 
 checkifused() {
-#    local n mods
-#    n=$(lsmod | awk '$1 == "nvidia" { print $3 }')
-#    mods=$(lsmod | awk '$1 == "nvidia" { print $4 }')
-#    IFS=,
-#    set -- $mods
-#    test $n -ne $#
     local n
     n=$(lsmod | awk '$1 == "nvidia_modeset" { print $3 }')
     test $n -ne 0
@@ -163,7 +163,6 @@ hide)
             exit 1
         fi
     fi
-    unload
     blacklist
     restrictkmod
     ;;
